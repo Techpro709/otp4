@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TOTP Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsSHA/3.2.0/sha.js"></script>
+    <style>
+        #otp {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        #timer {
+            font-size: 1.2em;
+            color: grey;
+        }
+    </style>
+</head>
+<body>
+    <h1>TOTP Generator</h1>
+    <p>OTP: <span id="otp"></span></p>
+    <p>Time left: <span id="timer"></span> seconds</p>
+
+    <script>
+        // TOTP generation code
+        function base32ToHex(base32) {
+            const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+            let bits = '';
+            let hex = '';
+
+            for (let i = 0; i < base32.length; i++) {
+                const val = base32chars.indexOf(base32.charAt(i).toUpperCase());
+                bits += val.toString(2).padStart(5, '0');
+            }
+
+            for (let i = 0; i + 4 <= bits.length; i += 4) {
+                const chunk = bits.substr(i, 4);
+                hex += parseInt(chunk, 2).toString(16);
+            }
+
+            return hex;
+        }
+
+        function leftpad(str, len, pad) {
+            if (len + 1 >= str.length) {
+                str = Array(len + 1 - str.length).join(pad) + str;
+            }
+            return str;
+        }
+
+        function generateTOTP(secret, window = 0) {
+            const epoch = Math.round(new Date().getTime() / 1000.0);
+            const timeStep = 30;
+            const timeCounter = Math.floor(epoch / timeStep) + window;
+            const timeCounterHex = leftpad(timeCounter.toString(16), 16, '0');
+
+            const shaObj = new jsSHA('SHA-1', 'HEX');
+            shaObj.setHMACKey(base32ToHex(secret), 'HEX');
+            shaObj.update(timeCounterHex);
+            const hmac = shaObj.getHMAC('HEX');
+
+            const offset = parseInt(hmac.slice(-1), 16);
+            const binary = ((parseInt(hmac.substr(offset * 2, 8), 16) & 0x7fffffff) % 1000000).toString().padStart(6, '0');
+
+            return binary;
+        }
+
+        function updateOTP() {
+            const secret = 'TCTSQQXGUATKHVSGMHSYKMJTFB6WGWZB'; // Example base32 secret key
+            const otp = generateTOTP(secret);
+            document.getElementById('otp').innerText = otp;
+
+            const epoch = Math.round(new Date().getTime() / 1000.0);
+            const timeStep = 30;
+            const timeLeft = timeStep - (epoch % timeStep);
+            document.getElementById('timer').innerText = timeLeft;
+
+            setTimeout(updateOTP, timeLeft * 1000); // Schedule next update
+        }
+
+        function startTimer() {
+            updateOTP();
+            setInterval(() => {
+                const epoch = Math.round(new Date().getTime() / 1000.0);
+                const timeStep = 30;
+                const timeLeft = timeStep - (epoch % timeStep);
+                document.getElementById('timer').innerText = timeLeft;
+            }, 1000);
+        }
+
+        // Start the timer and OTP updates on page load
+        window.onload = startTimer;
+    </script>
+</body>
+</html>
